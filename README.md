@@ -1,12 +1,14 @@
 ## 从代码库 [3dtiles](https://github.com/fanvanzh/3dtiles) 上Fork代码并修改
 
-从原始地址上fork下来代码后，发现一些不符合要求的地方，于是进行了修改。由于本人对3DTiles格式没什么研究，理解较浅，所以修改不一定对，没敢上传到原始库去，于是就独立了一份代码库。
+​    从原始地址上fork下来代码后，发现一些不符合要求的地方，于是进行了修改。由于本人对3DTiles格式没什么研究，理解较浅，所以修改不一定对，没敢上传到原始库去，于是就独立了一份代码库。
 
 **重要修改如下：**
 
 1. 升级了GDAL和OSG库的版本，主要是OSG库的版本。低版本OSG库无法读取一些OSGB文件，升级后兼容性更好（[查看](https://github.com/Zoulei-CSU/3dtiles-mod/commit/ed4e8789f05f839607e5768437c68afdb8aef4e9)）；
 2. 增加了OSGB文件中旋转矩阵的支持。有些OSGB内部存在旋转矩阵，但是原版转换的时候没读取旋转矩阵，导致转换出来的模型不对（[查看](https://github.com/Zoulei-CSU/3dtiles-mod/commit/6abfe84a9c1e70f181a549aa0f459f8802712c65)）；
-3. 重新修改了输出b3dm文件的字节对齐。原版在写要素表和批量表的时候，直接对齐到4字节，没做整体考虑，这个貌似不符合字节对齐要求，于是重新计算了字节对齐（[查看](https://github.com/Zoulei-CSU/3dtiles-mod/commit/1c74e0ab1899bce7e56667746a518ba9c6d45fc1)）；
+3. 重新修改了输出b3dm文件的字节对齐。原版在写要素表和批量表的时候，直接对齐到4字节，没做整体考虑，这个貌似不符合字节对齐[要求](#json二进制文本对齐)，于是重新计算了字节对齐（[查看](https://github.com/Zoulei-CSU/3dtiles-mod/commit/1c74e0ab1899bce7e56667746a518ba9c6d45fc1)）；
+
+
 
 
 
