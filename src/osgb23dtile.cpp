@@ -1,4 +1,4 @@
-#ifdef _WIN32
+﻿#ifdef _WIN32
 #include <Windows.h>
 #endif
 #include <iostream>
@@ -91,7 +91,7 @@ public:
     ~InfoVisitor() {
     }
 
-    //Ӧ��OSGB �е�ת������
+    //应用OSGB 中的转换矩阵
     void apply(osg::MatrixTransform& mt) override
     {
         if (!_hasMt)
@@ -104,7 +104,7 @@ public:
     }
 
     void apply(osg::Geometry& geometry){
-        //--------Ӧ��OSGB�е�ת������
+        //--------应用OSGB中的转换矩阵
         if (_hasMt)
         {
 			osg::ref_ptr<osg::Vec3Array> pointsArray = (osg::Vec3Array*)geometry.getVertexArray();
@@ -141,12 +141,12 @@ public:
 public:
     std::vector<osg::Geometry*> geometry_array;
     std::set<osg::Texture*> texture_array;
-    // ��¼ mesh �� texture �Ĺ�ϵ����ʱ��Ϊһ��ģ�����ֻ��һ�� texture
+    // 记录 mesh 和 texture 的关系，暂时认为一个模型最多只有一个 texture
     std::map<osg::Geometry*, osg::Texture*> texture_map; 
     std::vector<std::string> sub_node_names;
 
 private:
-    bool _hasMt;    //OSGB���Ƿ���ת������
+    bool _hasMt;    //OSGB中是否有转换矩阵
     osg::Quat _rotation;
 };
 
@@ -933,9 +933,11 @@ bool osgb2b3dm_buf(std::string path, std::string& b3dm_buf, TileBox& tile_box)
     feature_json_string += "{\"BATCH_LENGTH\":";
     feature_json_string += std::to_string(mesh_count);
     feature_json_string += "}";
-    while (feature_json_string.size() % 4 != 0 ) {
+    //文件头 + FeatureTableJSON 的长度要对齐到8字节
+    while ((28 + feature_json_string.size()) % 8 != 0 ) {
         feature_json_string.push_back(' ');
     }
+    
     json batch_json;
     std::vector<int> ids;
     for (int i = 0; i < mesh_count; ++i) {
@@ -950,10 +952,11 @@ bool osgb2b3dm_buf(std::string path, std::string& b3dm_buf, TileBox& tile_box)
     batch_json["batchId"] = ids;
     batch_json["name"] = names;
     std::string batch_json_string = batch_json.dump();
-    while (batch_json_string.size() % 4 != 0 ) {
+    //因为前面已经对齐了8字节，所以只要这里是8的整数倍，文件头 + FeatureTableJSON + BatchTableJSON的长度就对齐到8字节
+    while (batch_json_string.size() % 8 != 0 ) {
         batch_json_string.push_back(' ');
     }
-
+    //LOG_E("%s\n", batch_json_string.c_str());
 
     // how length total ?
     //test
@@ -966,7 +969,7 @@ bool osgb2b3dm_buf(std::string path, std::string& b3dm_buf, TileBox& tile_box)
     int batch_json_len = batch_json_string.size();
     int batch_bin_len = 0;
     int total_len = 28 /*header size*/ + feature_json_len + batch_json_len + glb_buf.size();
-
+    
     b3dm_buf += "b3dm";
     int version = 1;
     put_val(b3dm_buf, version);
@@ -981,6 +984,7 @@ bool osgb2b3dm_buf(std::string path, std::string& b3dm_buf, TileBox& tile_box)
     b3dm_buf.append(glb_buf);
     return true;
 }
+
 
 std::vector<double> convert_bbox(TileBox tile) {
     double center_mx = (tile.max[0] + tile.min[0]) / 2;
@@ -1001,13 +1005,17 @@ std::vector<double> convert_bbox(TileBox tile) {
     return v;
 }
 
+// 生成 b3dm ， 再统一外扩模型的 bbox
 void do_tile_job(osg_tree& tree, std::string out_path, int max_lvl) {
+    // 转瓦片、写json
     std::string json_str;
     if (tree.file_name.empty()) return;
     int lvl = get_lvl_num(tree.file_name);
     if (lvl > max_lvl) return;
+    // 转 tile 
     std::string b3dm_buf;
     osgb2b3dm_buf(tree.file_name, b3dm_buf, tree.bbox);
+    // false 可能当前为空, 但存在子节点
     std::string out_file = out_path;
     out_file += "/";
     out_file += replace(get_file_name(tree.file_name),".osgb",".b3dm");
