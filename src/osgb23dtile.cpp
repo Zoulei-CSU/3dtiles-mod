@@ -1,9 +1,15 @@
+#ifdef _WIN32
+#include <Windows.h>
+#endif
+#include <iostream>
+
 #include <osg/Material>
 #include <osg/PagedLOD>
 #include <osgDB/ReadFile>
 #include <osgDB/ConvertUTF>
 #include <osgUtil/Optimizer>
 #include <osgUtil/SmoothingVisitor>
+#include <osg/MatrixTransform>
 
 #include <set>
 #include <cmath>

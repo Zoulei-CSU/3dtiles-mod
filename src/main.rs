@@ -10,8 +10,8 @@ extern crate chrono;
 extern crate env_logger;
 
 pub mod fun_c;
-mod osgb;
-mod shape;
+pub mod osgb;
+pub mod shape;
 
 use chrono::prelude::*;
 use serde::{Deserialize};
@@ -46,16 +46,16 @@ fn main() {
         .filter(None, LevelFilter::Info)
         .init();
     //env_logger::init();
-    let matches = App::new("Make 3dtile program")
-        .version("1.0")
+    let matches = App::new("Make 3dtile program. （修改：支持3.6版osg，支持osgb内的旋转矩阵。）")
+        .version("1.0.4")
         .author("fanvanzh <fanvanzh@sina.com>")
-        .about("a very fast 3dtile tool")
+        .about("a very fast 3dtile tool. (Modified by Zoulei<zoulei.csu@gmail.com>.)")
         .arg(
             Arg::with_name("input")
                 .short("i")
                 .long("input")
                 .value_name("FILE")
-                .help("Set the input file")
+                .help("设置输入文件路径")
                 .required(true)
                 .takes_value(true),
         )
@@ -64,7 +64,7 @@ fn main() {
                 .short("o")
                 .long("output")
                 .value_name("FILE")
-                .help("Set the out file")
+                .help("设置输出文件路径")
                 .required(true)
                 .takes_value(true),
         )
@@ -72,8 +72,8 @@ fn main() {
             Arg::with_name("format")
                 .short("f")
                 .long("format")
-                .value_name("osgb,shape,gltf,b3dm")
-                .help("Set input format")
+                .value_name("osgb,shape,gltf")
+                .help("输入文件格式")
                 .required(true)
                 .takes_value(true),
         )
@@ -96,7 +96,7 @@ fn main() {
         .arg(
             Arg::with_name("height")
                 .long("height")
-                .help("Set the shapefile height field")
+                .help("设置shapefile中表示高程的字段")
                 .takes_value(true),
         )
         .arg(

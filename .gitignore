@@ -1,0 +1,8 @@
+# Compiled Object files
+*.idb
+*.pdb
+*.o
+*.obj
+
+
+target/
