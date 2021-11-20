@@ -909,10 +909,36 @@ bool osgb2glb_buf(std::string path, std::string& glb_buff, MeshInfo& mesh_info) 
         }
     }
     model.asset.version = "2.0";
-    model.asset.generator = "fanvanzh";
+    model.asset.generator = "zoulei";
 
     glb_buff = gltf.Serialize(&model);
     return true;
+}
+
+std::string& replace_all(std::string& str, const  std::string& old_value, const  std::string& new_value)
+{
+	while (true)
+	{
+		std::string::size_type   pos(0);
+		if ((pos = str.find(old_value)) != std::string::npos)
+		{
+			str.replace(pos, old_value.length(), new_value);
+		}
+		else { break; }
+	}
+	return   str;
+}
+//从文件路径获取文件名
+std::string  getNameFromPath(std::string path)
+{
+	path = replace_all(path, "\\", "/");
+	int pos = path.find_last_of('/');
+	int pos2 = path.find_last_of('.');
+
+	if (pos >= pos2)
+		return path;
+
+	return path.substr(pos + 1, pos2 - pos - 1);
 }
 
 bool osgb2b3dm_buf(std::string path, std::string& b3dm_buf, TileBox& tile_box)
@@ -951,6 +977,15 @@ bool osgb2b3dm_buf(std::string path, std::string& b3dm_buf, TileBox& tile_box)
     }
     batch_json["batchId"] = ids;
     batch_json["name"] = names;
+
+    //智慧城市的系统要查询单体，必须有模型file字段，也就是ID字段，这里强制写死
+    std::string file_name = getNameFromPath(path);
+    std::vector<std::string> file_names;
+	for (int i = 0; i < mesh_count; ++i) {
+        file_names.push_back(file_name);
+	}
+    batch_json["file"] = file_names;
+   
     std::string batch_json_string = batch_json.dump();
     //因为前面已经对齐了8字节，所以只要这里是8的整数倍，文件头 + FeatureTableJSON + BatchTableJSON的长度就对齐到8字节
     while (batch_json_string.size() % 8 != 0 ) {
