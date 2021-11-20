@@ -1,221 +1,145 @@
 ## 从代码库 [3dtiles](https://github.com/fanvanzh/3dtiles) 上Fork代码并修改
 
+从原始地址上fork下来代码后，发现一些不符合要求的地方，于是进行了修改。由于本人对3DTiles格式没什么研究，理解较浅，所以修改不一定对，没敢上传到原始库去，于是就独立了一份代码库。
 
+**重要修改如下：**
 
-**English | [简体中文](#简介)** 
+1. 升级了GDAL和OSG库的版本，主要是OSG库的版本。低版本OSG库无法读取一些OSGB文件，升级后兼容性更好（[查看](https://github.com/Zoulei-CSU/3dtiles-mod/commit/ed4e8789f05f839607e5768437c68afdb8aef4e9)）；
+2. 增加了OSGB文件中旋转矩阵的支持。有些OSGB内部存在旋转矩阵，但是原版转换的时候没读取旋转矩阵，导致转换出来的模型不对（[查看](https://github.com/Zoulei-CSU/3dtiles-mod/commit/6abfe84a9c1e70f181a549aa0f459f8802712c65)）；
+3. 重新修改了输出b3dm文件的字节对齐。原版在写要素表和批量表的时候，直接对齐到4字节，没做整体考虑，这个貌似不符合字节对齐要求，于是重新计算了字节对齐（[查看](https://github.com/Zoulei-CSU/3dtiles-mod/commit/1c74e0ab1899bce7e56667746a518ba9c6d45fc1)）；
 
-# Introduction
 
-[![glTF status](https://img.shields.io/badge/glTF-2%2E0-green.svg?style=flat)](https://github.com/KhronosGroup/glTF)
-[![Action status](https://github.com/fanvanzh/3dtiles/actions/workflows/rust.yml/badge.svg)](https://github.com/fanvanzh/3dtiles/actions/workflows/rust.yml)
 
-Tools for 3D-Tiles convertion.
+------
 
-This is a `RUST language` project with cpp lib to handle osgb data.
+## b3dm文件格式是否正确的检验方法
 
-Tools provided are as follow：
+1. 官方的一个NodeJS的程序：https://github.com/CesiumGS/3d-tiles-validator
+2. 使用.NET Core SDK编写的一个检验程序：https://github.com/bertt/b3dm.tooling
 
-- `Osgb(OpenSceneGraph Binary)` to `3D-Tiles`: convert huge of osgb file to 3D-Tiles.
 
-- `Esri Shapefile` to `3D-Tiles`: convert shapefile to 3D-Tiles.
 
-- `Fbx` to `3D-Tiles`: convert fbx file to 3D-Tiles, include auto_lod\texture convertion etc.
+------
 
 
 
-You may intereted in: 
+## 瓦片文件二进制布局（文件结构）
 
-- [How to build this project?](https://github.com/fanvanzh/3dtiles/wiki/How-to-build)
+![b3dm二进制结构图](./image/b3dm_1.png)
 
-- [How to debug?](https://github.com/fanvanzh/3dtiles/wiki/How-to-debug)
+## ① 文件头：占28字节（byte）
 
-- [Download Windows Pre-build](https://github.com/fanvanzh/3dtiles/releases/download/v0.4/3dtile.zip)
+位于b3dm文件最开头的28个字节，是7个属性数据：
 
-# Usage
+| 属性的官方名称                 | 字节长 | 类型                | 含义                                  |
+| ------------------------------ | ------ | ------------------- | ------------------------------------- |
+| `magic`                        | 4      | string（或char[4]） | 该瓦片文件的类型，在b3dm中是 `"b3dm"` |
+| `version`                      | 4      | uint32              | 该瓦片的版本，目前限定是 1.           |
+| `byteLength`                   | 4      | uint32              | 该瓦片文件的文件大小，单位：byte      |
+| `featureTableJSONByteLength`   | 4      | uint32              | 要素表的JSON文本（二进制形式）长度    |
+| `featureTableBinaryByteLength` | 4      | uint32              | 要素表的二进制数据长度                |
+| `batchTableJSONByteLength`     | 4      | uint32              | 批量表的JSON文本（二进制形式）长度    |
+| `batchTableBinaryByteLength`   | 4      | uint32              | 批量表的二进制数据长度                |
 
-## ① Command Line
+其中，
 
-```sh
-3dtile.exe [FLAGS] [OPTIONS] --format <FORMAT> --input <PATH> --output <DIR>
-```
+`byteLength` = 28 + `featureTableJSONByteLength` + `featureTableBinaryByteLength` + `batchTableJSONByteLength` + `batchTableBinaryByteLength` + `glb` 的字节长度
 
-## ② Examples
 
-```sh
-# from osgb dataset
-3dtile.exe -f osgb -i E:\osgb_path -o E:\out_path
-3dtile.exe -f osgb -i E:\osgb_path -o E:\out_path -c "{\"offset\": 0}"
-# use pbr-texture
-3dtile.exe -f osgb -i E:\osgb_path -o E:\out_path -c "{\"pbr\": true}"
 
-# from single shp file
-3dtile.exe -f shape -i E:\Data\aa.shp -o E:\Data\aa --height height
+## ② 要素表
 
-# from single osgb file to glb file
-3dtile.exe -f gltf -i E:\Data\TT\001.osgb -o E:\Data\TT\001.glb
+要素表，记录渲染相关的数据：FeatureTable。
 
-# from single obj file to glb file
-3dtile.exe -f gltf -i E:\Data\TT\001.obj -o E:\Data\TT\001.glb
+在 b3dm 瓦片中，要素表记录这个批量模型瓦片中模型的个数，这个模型单体在人类逻辑上不可再分。
 
-# convert single b3dm file to glb file
-3dtile.exe -f b3dm -i E:\Data\aa.b3dm -o E:\Data\aa.glb
-```
+（在房屋级别来看，房子并不是单体，构造它的门、门把、窗户、屋顶、墙等才是模型单体；但是在模型壳子的普通表面建模数据中，房子就是一个简单的模型）
 
-## ③ Paramters
+要素表还可以记录当前瓦片的中心坐标，以便gltf使用相对坐标，压缩顶点坐标数字的数据量。
 
-To Translate.
+官方给的定义是：
 
-# Data Requirements & Announcement
+> 要素表记录的是与渲染有关的数据。
 
-To Translate.
+直球！听不懂！
 
+我来“翻译”一下好了：
 
+> 要素表，记录的是整个瓦片渲染相关的数据，而不是渲染所需的数据。
+>
+> 渲染相关，即有多少个模型，坐标是相对的话相对于哪个中心，如果是点云的话颜色信息是什么以及坐标如何等；
+>
+> 渲染所需，例如顶点信息、法线贴图材质信息均有glb部分完成。
 
 
 
----
+## ③ 批量表
 
-**[English](#Introduction) | 简体中文**
+批量表记录的是每个模型的属性数据，以及扩展数据。
 
-<h1 id="intro">简介</h1>
+要素表和批量表唯一的联系就是 `BATCH_LENGTH`，在 i3dm 中叫 `INSTANCE_LENGTH`，在 pnts 中叫 `POINTS_LENGTH`。
 
-3D-Tile 转换工具集，高效快速的 3D-Tiles 生产工具，极度节省你的处理时间。
+如果把批量表删除，那么3dTiles数据还能正常渲染。
 
-这是一个混合了 c 和 c++ 库（主要是 osgb）的 Rust 项目。
+批量表就是所谓的模型属性表，批量表中每个属性数组的个数，就等于模型的个数，因为有多少个模型就对应多少个属性嘛！
 
-提供了如下的子工具：
+批量表相对比较自由，只要能与模型对得上号，想写啥就写啥。
 
-- `Osgb(OpenSceneGraph Binary)` 转 `3D-Tiles`
 
-- `Esri Shapefile` 转 `3D-Tiles`
 
-- `Fbx` 转 `3D-Tiles`
-- ...
+## ④ 内嵌的glb
 
-# 用法说明
+本部分略，对glb数据感兴趣的读者可自行查阅 glTF 数据规范。
 
-## ① 命令行格式
+关于两大数据表如何与glb每一个顶点进行关联的，在前篇也有简略介绍。可以参考官方的说明：
 
-```sh
-3dtile.exe [FLAGS] [OPTIONS] --format <FORMAT> --input <PATH> --output <DIR>
-```
+https://github.com/CesiumGS/3d-tiles/tree/master/specification/TileFormats/Batched3DModel#binary-gltf
 
-## ② 示例命令
 
-```sh
-# from osgb dataset
-3dtile.exe -f osgb -i E:\osgb_path -o E:\out_path
-3dtile.exe -f osgb -i E:\osgb_path -o E:\out_path -c "{\"offset\": 0}"
-# use pbr-texture
-3dtile.exe -f osgb -i E:\osgb_path -o E:\out_path -c "{\"pbr\": true}"
 
-# from single shp file
-3dtile.exe -f shape -i E:\Data\aa.shp -o E:\Data\aa --height height
 
-# from single osgb file to glb file
-3dtile.exe -f gltf -i E:\Data\TT\001.osgb -o E:\Data\TT\001.glb
 
-# from single obj file to glb file
-3dtile.exe -f gltf -i E:\Data\TT\001.obj -o E:\Data\TT\001.glb
+## ⑤ 字节对齐与编码端序
 
-# convert single b3dm file to glb file
-3dtile.exe -f b3dm -i E:\Data\aa.b3dm -o E:\Data\aa.glb
-```
+### JSON二进制文本对齐
 
-## ③ 参数说明
+FeatureTableJSON、BatchTableJSON的二进制文本，最后一个字节相对于整个b3dm文件来说，偏移量必须是8的倍数。
 
-- `-c, --config <JSON>` 在命令行传入 json 配置的字符串，json 内容为选配，可部分实现
+如果不对齐，必须用二进制空格（即 `0x20`）填够。
 
-  json 示例：
+因为 FeatureTableJSON 之前是28byte的 文件头，为了凑齐8倍数对齐，末尾对齐，即 (28 + ftJSON长)能整除8，(28 + ftTable长 + btJSON长)能整除8.
 
-  ``` json
-  {
-    "x": 120,
-    "y": 30,
-    "offset": 0 , // 模型最低面地面距离
-    "max_lvl" : 20 // 处理切片模型到20级停止
-  }
-  ```
+### 数据体的起始、末尾对齐
 
+二进制数据体，无论是要素表、批量表，首个字节相对于b3dm文件的字节偏移量，必须是8的倍数，结束字节的字节偏移量，也必须是8的倍数。
 
-- `-f, --format <FORMAT>` 输入数据格式。
+如果不满足，可以填充任意数据字节满足此要求。
 
-  `FORMAT` 可选：osgb, shape, gltf, b3dm
+特别的，二进制数据体中，每一个属性值的第一个数值的第一个字节的偏移量，相对于整个b3dm文件，必须是其 `componentType` 的倍数，如果不满足，则必须用空白字节填满。
 
-  `osgb` 为倾斜摄影格式数据, `shape` 为 Shapefile 面数据, `gltf` 为单一通用模型转gltf, `b3dm` 为单个3dtile二进制数据转gltf
+例如，上述 height 属性所在的批量表二进制数据体，理所当然位于批量表JSON之后，而批量表的JSON又是8byte对齐的，假设批量表的数据体起始字节是800，那么 height 的第一个值起始字节就是 800，由于 height 属性的 componentType 是 FLOAT，即 4字节，800 ÷ 4 能整除，所以没有问题。
 
-- `-i, --input <PATH>` 输入数据的目录，osgb数据截止到 `<DIR>/Data` 目录的上一级，其他格式具体到文件名。
+但是，假如 换一个属性，其 componentType 是 `BYTE`，即 1字节，那么假设第二个属性的 componentType 是 DOUBLE，即 8字节，就会出现 第二个属性的第一个值起始偏移量是810，810 ÷ 8 并不能整除，必须补齐 6个空白字节，以满足第二个属性第一个值的起始偏移量是 810+6 = 816字节。
 
-- `-o, --output <DIR>` 输出目录。输出的数据文件位于 `<DIR>/Data` 目录。
+### 编码端序
 
-- `--height` 高度字段。指定shapefile中的高度属性字段，此项为转换 shp 时的必须参数。
+要素表、批量表的二进制数据，无论是JSON还是数据体，均使用小端序编码（LittleEndian）。
 
 
 
-# 数据要求及说明
 
-### ① 倾斜摄影数据
 
-倾斜摄影数据仅支持 smart3d 格式的 osgb 组织方式：
+## ⑥ 扩展数据（extensions）与额外补充信息（extras）
 
-- 数据目录必须有一个 `“Data”` 目录的总入口；
-- `“Data”` 目录同级放置一个 `metadata.xml` 文件用来记录模型的位置信息；
-- 每个瓦片目录下，必须有个和目录名同名的 osgb 文件，否则无法识别根节点；
+其实，无论是要素表，还是批量表，都允许在JSON中存在扩展数据，以扩充当前瓦片模型的功能，而并不是单一的一个一个模型顺次存储在瓦片文件、glb中。
 
-正确的目录结构示意：
 
-```
-- Your-data-folder
-  ├ metadata.xml
-  └ Data\Tile_000_000\Tile_000_000.osgb
-```
 
-### ② Shapefile
+参考：
 
-目前仅支持 Shapefile 的面数据，可用于建筑物轮廓批量生成 3D-Tiles.
+https://www.cnblogs.com/onsummer/p/13200906.html
 
-Shapefile 中需要有字段来表示高度信息。
+https://www.cnblogs.com/onsummer/p/13252896.html
 
-### ③ 通用模型转 glTF：
 
-支持 osg、osgb、obj、fbx、3ds 等单一通用模型数据转为 gltf、glb 格式。
 
-转出格式为 2.0 的gltf，可在以下网址验证查看： https://pissang.github.io/clay-viewer/editor/
-
-### ④ B3dm 单文件转 glb
-
-支持将 b3dm 单个文件转成 glb 格式，便于调试程序和测试数据
-
-
----
-
-# Who use / Who star
-
-- NASA JPL (gkjohnson)
-- AnalyticalGraphicsInc (kring)
-- NVIDIA (Vinjn Zhang)
-- Ubisoft (Cmdu76)
-- Baidu (hinikai)
-- Esri (suny323)
-- Geostar (hekaikai\shitao1988)
-
-- MapTalks (brucin\fuzhenn\axmand)
-- Alibaba (luxueyan)
-- Tencent (NichoZhang)
-- Data Cloud Co- Ltd (liujin834)
-- Tsinghua University (DeZhao-Zhang)
-- Peking University (CHRIS-WiNG\Weizhen-Fang)
-- Wuhan University (chenguanzhou)
-- Guangzhou University (LreeLenn)
-- Hopkins University (AndrewAnnex)
-
-- 中国铁道科学设计研究院
-- 上海华东设计研究院
-- 江苏省测绘研究所
-- 宁波市测绘设计研究院
-- 合肥火星科技有限公司 (muyao1987)
-- 北京西部数据科技 (vtxf\elfc2000)
-
-# About author
-
-作者不是专业搞三维GIS的，因偶尔有个需求要展示 3D-Tiles，一时找不到工具，就写了个轮子，代码多有纰漏，仅供参考。
