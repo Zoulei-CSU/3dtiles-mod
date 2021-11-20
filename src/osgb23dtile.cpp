@@ -85,13 +85,38 @@ class InfoVisitor : public osg::NodeVisitor
 public:
     InfoVisitor(std::string _path)
     :osg::NodeVisitor(TRAVERSE_ALL_CHILDREN)
-    ,path(_path)
+    ,path(_path), _hasMt(false)
     {}
 
     ~InfoVisitor() {
     }
 
+    //应用OSGB 中的转换矩阵
+    void apply(osg::MatrixTransform& mt) override
+    {
+        if (!_hasMt)
+        {
+			osg::Matrix mat = mt.getMatrix();
+			_rotation = mat.getRotate();
+            _hasMt = true;
+        }
+        traverse(mt);
+    }
+
     void apply(osg::Geometry& geometry){
+        //--------应用OSGB中的转换矩阵
+        if (_hasMt)
+        {
+			osg::ref_ptr<osg::Vec3Array> pointsArray = (osg::Vec3Array*)geometry.getVertexArray();
+			for (int i = 0; i < pointsArray->size(); i++)
+			{
+                pointsArray->at(i) = _rotation * pointsArray->at(i);
+			}
+            geometry.dirtyBound();
+        }
+        //====
+        
+
         geometry_array.push_back(&geometry);
         if (auto ss = geometry.getStateSet() ) {
             osg::Texture* tex = dynamic_cast<osg::Texture*>(ss->getTextureAttribute(0, osg::StateAttribute::TEXTURE));
@@ -101,7 +126,7 @@ public:
             }
         }
     }
-
+    
     void apply(osg::PagedLOD& node) {
         //std::string path = node.getDatabasePath();
         int n = node.getNumFileNames();
@@ -116,8 +141,13 @@ public:
 public:
     std::vector<osg::Geometry*> geometry_array;
     std::set<osg::Texture*> texture_array;
-    std::map<osg::Geometry*, osg::Texture*> texture_map;
+    // 记录 mesh 和 texture 的关系，暂时认为一个模型最多只有一个 texture
+    std::map<osg::Geometry*, osg::Texture*> texture_map; 
     std::vector<std::string> sub_node_names;
+
+private:
+    bool _hasMt;    //OSGB中是否有转换矩阵
+    osg::Quat _rotation;
 };
 
 double get_geometric_error(TileBox& bbox){
