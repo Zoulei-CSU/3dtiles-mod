@@ -46,8 +46,8 @@ fn main() {
         .filter(None, LevelFilter::Info)
         .init();
     //env_logger::init();
-    let matches = App::new("Make 3dtile program. （修改：支持3.6版osg，支持osgb内的旋转矩阵。）")
-        .version("1.0.4")
+    let matches = App::new("Make 3dtile program. （修改：支持3.6版osgb，支持osgb内的旋转矩阵。）")
+        .version("1.0.5")
         .author("fanvanzh <fanvanzh@sina.com>")
         .about("a very fast 3dtile tool. (Modified by Zoulei<zoulei.csu@gmail.com>.)")
         .arg(
@@ -86,8 +86,9 @@ fn main() {
 {
     \"x\": x,
     \"y\": y,
-    \"offset\": 0,
-    \"max_lvl\" : 20,
+    \"offset\": 0 (模型最低面地面高程偏移，默认0),
+    \"max_lvl\" : 20 (模型切片最大到20级停止，默认100),
+    \"ext_name\" : 0 (切片写额外名称字段的方式：0不写，1写文件名),
     \"pbr\" : false
 }",
                 )
@@ -227,6 +228,7 @@ fn convert_osgb(src: &str, dest: &str, config: &str) {
     let mut center_y = 0f64;
     let mut max_lvl = None;
     let mut trans_region = None;
+    let mut write_ext_name = None;
     let mut pbr_texture  = false;
 
     // try parse metadata.xml
@@ -361,6 +363,9 @@ fn convert_osgb(src: &str, dest: &str, config: &str) {
         if let Some(lvl) = v["max_lvl"].as_i64() {
             max_lvl = Some(lvl as i32);
         }
+        if let Some(extname) = v["ext_name"].as_i64() {
+            write_ext_name = Some(extname as i32);
+        }
         if let Some(pbr) = v["pbr"].as_bool() {
             pbr_texture = pbr;
         }
@@ -369,7 +374,7 @@ fn convert_osgb(src: &str, dest: &str, config: &str) {
     }
     let tick = time::SystemTime::now();
     if let Err(e) = osgb::osgb_batch_convert(
-                        &dir, &dir_dest, max_lvl,
+                        &dir, &dir_dest, max_lvl, write_ext_name,
                         center_x, center_y, trans_region, pbr_texture)
     {
         error!("{}", e);

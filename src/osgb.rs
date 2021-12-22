@@ -20,6 +20,7 @@ extern "C" {
         x: f64,
         y: f64,
         max_lvl: i32,
+        write_ext_name: i32,
         pbr_texture: bool
     ) -> *mut libc::c_void;
 
@@ -63,6 +64,7 @@ pub fn osgb_batch_convert(
     dir: &Path,
     dir_dest: &Path,
     max_lvl: Option<i32>,
+    write_ext_name: Option<i32>,
     center_x: f64,
     center_y: f64,
     region_offset: Option<f64>,
@@ -110,6 +112,7 @@ pub fn osgb_batch_convert(
     let rad_y = unsafe { degree2rad(center_y) };
 
     let max_lvl: i32 = max_lvl.unwrap_or(100);
+    let write_ext_name: i32 = write_ext_name.unwrap_or(0);
     osgb_dir_pair
         .into_par_iter()
         .map(|info| unsafe {
@@ -126,6 +129,7 @@ pub fn osgb_batch_convert(
                 rad_x,
                 rad_y,
                 max_lvl,
+                write_ext_name,
                 pbr_texture,
             );
             if out_ptr.is_null() {

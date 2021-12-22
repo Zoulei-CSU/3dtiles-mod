@@ -941,7 +941,7 @@ std::string  getNameFromPath(std::string path)
 	return path.substr(pos + 1, pos2 - pos - 1);
 }
 
-bool osgb2b3dm_buf(std::string path, std::string& b3dm_buf, TileBox& tile_box)
+bool osgb2b3dm_buf(std::string path, std::string& b3dm_buf, TileBox& tile_box, int write_ext_name = 0)
 {
     using nlohmann::json;
 
@@ -978,20 +978,24 @@ bool osgb2b3dm_buf(std::string path, std::string& b3dm_buf, TileBox& tile_box)
     batch_json["batchId"] = ids;
     batch_json["name"] = names;
 
-    //智慧城市的系统要查询单体，必须有模型file字段，也就是ID字段，这里强制写死
-    std::string file_name = getNameFromPath(path);
-    std::vector<std::string> file_names;
-	for (int i = 0; i < mesh_count; ++i) {
-        file_names.push_back(file_name);
-	}
-    batch_json["file"] = file_names;
+    // 0表示什么也不干，1表示写入模型的名称
+    if (write_ext_name == 1)
+    {
+        //智慧城市的系统要查询单体，必须有模型file字段，也就是ID字段，这里强制写死
+        std::string file_name = getNameFromPath(path);
+        std::vector<std::string> file_names;
+        for (int i = 0; i < mesh_count; ++i) {
+            file_names.push_back(file_name);
+        }
+        batch_json["file"] = file_names;
+    }
    
     std::string batch_json_string = batch_json.dump();
     //因为前面已经对齐了8字节，所以只要这里是8的整数倍，文件头 + FeatureTableJSON + BatchTableJSON的长度就对齐到8字节
     while (batch_json_string.size() % 8 != 0 ) {
         batch_json_string.push_back(' ');
     }
-    //LOG_E("%s\n", batch_json_string.c_str());
+    //LOG_E("write_name:%d\nbatch:%s\n", write_ext_name, batch_json_string.c_str());
 
     // how length total ?
     //test
@@ -1041,7 +1045,7 @@ std::vector<double> convert_bbox(TileBox tile) {
 }
 
 // 生成 b3dm ， 再统一外扩模型的 bbox
-void do_tile_job(osg_tree& tree, std::string out_path, int max_lvl) {
+void do_tile_job(osg_tree& tree, std::string out_path, int max_lvl, int write_ext_name) {
     // 转瓦片、写json
     std::string json_str;
     if (tree.file_name.empty()) return;
@@ -1049,7 +1053,7 @@ void do_tile_job(osg_tree& tree, std::string out_path, int max_lvl) {
     if (lvl > max_lvl) return;
     // 转 tile 
     std::string b3dm_buf;
-    osgb2b3dm_buf(tree.file_name, b3dm_buf, tree.bbox);
+    osgb2b3dm_buf(tree.file_name, b3dm_buf, tree.bbox, write_ext_name);
     // false 可能当前为空, 但存在子节点
     std::string out_file = out_path;
     out_file += "/";
@@ -1065,7 +1069,7 @@ void do_tile_job(osg_tree& tree, std::string out_path, int max_lvl) {
     // write_file(out_file.c_str(), glb_buf.data(), glb_buf.size());
     // end test
     for (auto& i : tree.sub_nodes) {
-        do_tile_job(i,out_path,max_lvl);
+        do_tile_job(i, out_path, max_lvl, write_ext_name);
     }
 }
 
@@ -1206,7 +1210,7 @@ encode_tile_json(osg_tree& tree, double x, double y)
 extern "C" void* 
 osgb23dtile_path(const char* in_path, const char* out_path,
                     double *box, int* len, double x, double y,
-                    int max_lvl, bool pbr_texture)
+                    int max_lvl, int write_ext_name, bool pbr_texture)
 {
     std::string path = osg_string(in_path);
     osg_tree root = get_all_tree(path);
@@ -1216,7 +1220,7 @@ osgb23dtile_path(const char* in_path, const char* out_path,
         return NULL;
     }
     b_pbr_texture = pbr_texture;
-    do_tile_job(root, out_path, max_lvl);
+    do_tile_job(root, out_path, max_lvl, write_ext_name);
     extend_tile_box(root);
     if (root.bbox.max.empty() || root.bbox.min.empty())
     {
